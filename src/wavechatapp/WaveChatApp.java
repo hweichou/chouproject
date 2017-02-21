@@ -163,7 +163,7 @@ public class WaveChatApp extends JFrame {
 							myUsername = txtUsername.getText().toString();
 							panelStatus.setBackground(new Color(102,204,0));
 							lblStatus.setText("ONLINE");
-							String commandOnAddUser = "NewUser:"+myUsername+":"+processID;
+							String commandOnAddUser = "GETALLUSER:"+myUsername;
 							byte[] buf1 = commandOnAddUser.getBytes(); 
 							DatagramPacket dgpNewUser = new DatagramPacket(buf1,buf1.length, commonMulticastGroup, 6789);
 							commonMulticastSocket.send(dgpNewUser);
@@ -310,28 +310,39 @@ public class WaveChatApp extends JFrame {
 			}else if (inD[0].equals("UsernameResponse")){
 				if (inD[1].equals("True")&& inD[2].equals(processID)){
 					usernameAvailability = false;
-					JOptionPane.showMessageDialog(new JFrame(), "Username in used","Error", JOptionPane.ERROR_MESSAGE);
+					JOptionPane.showMessageDialog(new JFrame(), "Username in used.","Error", JOptionPane.ERROR_MESSAGE);
 				}
-			}else if (inD[0].equals("NewUser")){
-				userArray.add(inD[1].toString());
-				String response = "NewUserWelcome:"+myUsername+":"+inD[2];
-				byte[] buf = response.getBytes();
-				DatagramPacket dgpWelcome = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
-				commonMulticastSocket.send(dgpWelcome);
-				refreshOUser();
-			}else if (inD[0].equals("NewUserWelcome")){
-				if (!(processID.equals(inD[2]))){
-					String name = "NewUserAll:"+myUsername+":"+inD[2];
-					byte[] buf = name.getBytes();
-					DatagramPacket dgpAllNames = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
-					commonMulticastSocket.send(dgpAllNames);
-				}
+			}else if (inD[0].equals("GETALLUSER")){
+				userArray = new ArrayList<String>(); 
+				String name = "NewUserAll:"+myUsername;
+				byte[] buf = name.getBytes();
+				DatagramPacket dgpAllNames = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
+				commonMulticastSocket.send(dgpAllNames);
 			}else if (inD[0].equals("NewUserAll")){
-				if (processID.equals(inD[2])){
-					userArray.add(inD[1].toString());
-					refreshOUser();
-				}
+				userArray.add(inD[1].toString());
+				refreshOUser();
 			}
+			
+//			}else if (inD[0].equals("NewUser")){
+//				userArray.add(inD[1].toString());
+//				String response = "NewUserWelcome:"+myUsername+":"+inD[2];
+//				byte[] buf = response.getBytes();
+//				DatagramPacket dgpWelcome = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
+//				commonMulticastSocket.send(dgpWelcome);
+//				refreshOUser();
+//			}else if (inD[0].equals("NewUserWelcome")){
+//				if (!(processID.equals(inD[2]))){
+//					String name = "NewUserAll:"+myUsername+":"+inD[2];
+//					byte[] buf = name.getBytes();
+//					DatagramPacket dgpAllNames = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
+//					commonMulticastSocket.send(dgpAllNames);
+//				}
+//			}else if (inD[0].equals("NewUserAll")){
+//				if (processID.equals(inD[2])){
+//					userArray.add(inD[1].toString());
+//					refreshOUser();
+//				}
+//			}
 		}catch(Exception e){
 			e.printStackTrace();
 		}
