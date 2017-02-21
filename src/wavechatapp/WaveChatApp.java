@@ -28,6 +28,8 @@ import java.lang.management.ManagementFactory;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.awt.event.ActionEvent;
 import javax.swing.JSeparator;
@@ -43,7 +45,8 @@ public class WaveChatApp extends JFrame {
 	private JTextField txtUsername;
 	private JTextField txtGrpName;
 	private JPanel panelStatus;
-	JLabel lblStatus;
+	private JLabel lblStatus;
+	private JList UserList;
 	
 	MulticastSocket multicastSocket= null, commonMulticastSocket = null;
 	InetAddress multicastGroup = null, commonMulticastGroup = null;
@@ -51,6 +54,7 @@ public class WaveChatApp extends JFrame {
 	private String myUsername="", processID;
 	private boolean usernameAvailability;
 	private boolean userStatus = false;
+	List<String> userArray = new ArrayList<String>();
 	
 	/**
 	 * Launch the application.
@@ -159,6 +163,10 @@ public class WaveChatApp extends JFrame {
 							myUsername = txtUsername.getText().toString();
 							panelStatus.setBackground(new Color(102,204,0));
 							lblStatus.setText("ONLINE");
+							String commandOnAddUser = "NewUser:"+myUsername+":"+processID;
+							byte[] buf1 = commandOnAddUser.getBytes(); 
+							DatagramPacket dgpNewUser = new DatagramPacket(buf1,buf1.length, commonMulticastGroup, 6789);
+							commonMulticastSocket.send(dgpNewUser);
 						}
 					}catch(Exception e){
 						e.printStackTrace();
@@ -184,30 +192,18 @@ public class WaveChatApp extends JFrame {
 		lblNewLabel_4.setBounds(12, 13, 209, 20);
 		panel.add(lblNewLabel_4);
 		
-		JLabel lblFriends = new JLabel("Friends");
+		JLabel lblFriends = new JLabel("Online Users");
 		lblFriends.setFont(new Font("Tahoma", Font.BOLD, 14));
 		lblFriends.setBounds(12, 86, 209, 20);
 		panel.add(lblFriends);
 		
 		JScrollPane scrollPane_1 = new JScrollPane();
-		scrollPane_1.setBounds(12, 119, 223, 153);
+		scrollPane_1.setBounds(12, 119, 351, 153);
 		panel.add(scrollPane_1);
 		
-		JList listFriend = new JList();
-		scrollPane_1.setViewportView(listFriend);
-		listFriend.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		
-		JButton btnAddFriend = new JButton("Add Friend");
-		btnAddFriend.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnAddFriend.setEnabled(false);
-		btnAddFriend.setBounds(243, 134, 123, 32);
-		panel.add(btnAddFriend);
-		
-		JButton btnRemoveFriend = new JButton("Remove Friend");
-		btnRemoveFriend.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnRemoveFriend.setEnabled(false);
-		btnRemoveFriend.setBounds(243, 179, 123, 32);
-		panel.add(btnRemoveFriend);
+		UserList = new JList();
+		scrollPane_1.setViewportView(UserList);
+		UserList.setBorder(new LineBorder(new Color(0, 0, 0), 2));
 		
 		JSeparator separator_1 = new JSeparator();
 		separator_1.setBounds(12, 285, 351, 2);
@@ -219,24 +215,12 @@ public class WaveChatApp extends JFrame {
 		panel.add(lblGroups);
 		
 		JScrollPane scrollPane_2 = new JScrollPane();
-		scrollPane_2.setBounds(12, 367, 223, 153);
+		scrollPane_2.setBounds(12, 367, 351, 153);
 		panel.add(scrollPane_2);
 		
 		JList listGroups = new JList();
 		listGroups.setBorder(new LineBorder(new Color(0, 0, 0), 2));
 		scrollPane_2.setViewportView(listGroups);
-		
-		JButton btnInvite = new JButton("Invite...");
-		btnInvite.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnInvite.setEnabled(false);
-		btnInvite.setBounds(243, 389, 123, 32);
-		panel.add(btnInvite);
-		
-		JButton btnLeave = new JButton("Leave...");
-		btnLeave.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnLeave.setEnabled(false);
-		btnLeave.setBounds(243, 435, 123, 32);
-		panel.add(btnLeave);
 		
 		JLabel lblGroupName = new JLabel("Group Name: ");
 		lblGroupName.setFont(new Font("Tahoma", Font.PLAIN, 13));
@@ -257,18 +241,6 @@ public class WaveChatApp extends JFrame {
 		btnCreateGrp.setEnabled(false);
 		btnCreateGrp.setBounds(269, 329, 97, 25);
 		panel.add(btnCreateGrp);
-		
-		JButton btnPStart = new JButton("Start Conversation");
-		btnPStart.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnPStart.setEnabled(false);
-		btnPStart.setBounds(243, 224, 123, 32);
-		panel.add(btnPStart);
-		
-		JButton btnGStart = new JButton("Start Conversation");
-		btnGStart.setFont(new Font("Tahoma", Font.PLAIN, 11));
-		btnGStart.setEnabled(false);
-		btnGStart.setBounds(243, 480, 123, 32);
-		panel.add(btnGStart);
 		
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new EtchedBorder(EtchedBorder.LOWERED, null, null));
@@ -340,10 +312,35 @@ public class WaveChatApp extends JFrame {
 					usernameAvailability = false;
 					JOptionPane.showMessageDialog(new JFrame(), "Username in used","Error", JOptionPane.ERROR_MESSAGE);
 				}
+			}else if (inD[0].equals("NewUser")){
+				userArray.add(inD[1].toString());
+				String response = "NewUserWelcome:"+myUsername+":"+inD[2];
+				byte[] buf = response.getBytes();
+				DatagramPacket dgpWelcome = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
+				commonMulticastSocket.send(dgpWelcome);
+				refreshOUser();
+			}else if (inD[0].equals("NewUserWelcome")){
+				if (!(processID.equals(inD[2]))){
+					String name = "NewUserAll:"+myUsername+":"+inD[2];
+					byte[] buf = name.getBytes();
+					DatagramPacket dgpAllNames = new DatagramPacket(buf,buf.length,commonMulticastGroup,6789);
+					commonMulticastSocket.send(dgpAllNames);
+				}
+			}else if (inD[0].equals("NewUserAll")){
+				if (processID.equals(inD[2])){
+					userArray.add(inD[1].toString());
+					refreshOUser();
+				}
 			}
 		}catch(Exception e){
 			e.printStackTrace();
 		}
 		
+	}
+	
+	public void refreshOUser(){
+		String[] uArray  = new String[userArray.size()];
+		userArray.toArray(uArray);
+		UserList.setListData(uArray);
 	}
 }
