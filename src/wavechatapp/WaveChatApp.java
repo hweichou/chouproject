@@ -22,14 +22,18 @@ import com.sun.org.apache.xalan.internal.xsltc.compiler.Pattern;
 
 import javax.swing.border.EtchedBorder;
 import javax.swing.Box;
+import javax.swing.DefaultListModel;
+
 import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.awt.event.ActionEvent;
 import javax.swing.JSeparator;
@@ -42,19 +46,154 @@ public class WaveChatApp extends JFrame {
 
 	private JPanel contentPane;
 	private JTextField textField;
-	private JTextField txtUsername;
+	private static JTextField txtUsername;
 	private JTextField txtGrpName;
 	private JPanel panelStatus;
 	private JLabel lblStatus;
-	private JList UserList;
+	private static JList UserList;
+	private static JList groupList;
 	
-	MulticastSocket multicastSocket= null, commonMulticastSocket = null;
-	InetAddress multicastGroup = null, commonMulticastGroup = null;
+	MulticastSocket multicastSocket= null;
+	static MulticastSocket commonMulticastSocket = null;
+	InetAddress multicastGroup = null;
+	static InetAddress commonMulticastGroup = null;
 	
-	private String myUsername="", processID;
-	private boolean usernameAvailability;
+	
+	
+	private static String myUsername="";
+	private static String processID;
+	private static boolean usernameAvailability;
 	private boolean userStatus = false;
-	List<String> userArray = new ArrayList<String>();
+	static List<String> userArray = new ArrayList<String>();
+	
+	public static MulticastSocket GroupmulticastSocket = null;
+	public static InetAddress GroupmulticastCommon = null;
+
+	MulticastSocket GroupmulticastSocketPrivate = null;
+	InetAddress GroupmulticastPrivate = null;
+
+	String Name = "";
+	static String ipadd = "235.1.1.1";
+	static String ipaddTemplate = "235.1.1.";
+	static String ipaddR = "";
+	String addon = "1";
+	static String roomName = "";
+	static String rRoomName = "";
+	static String fromOthers;
+
+	static ArrayList<String> mylist = new ArrayList<String>();
+	static DefaultListModel<String> groupModel = new DefaultListModel<String>();
+	
+	public static String generateNumber() {
+		String result = "";
+		StringBuilder sb = new StringBuilder();
+		Random random = new SecureRandom();
+		int codeLength = 2;
+		String a = "1234567890";
+		// String a = "10";
+		int num = 0;
+		char[] chars = a.toCharArray();
+		boolean check = false;
+		while (check == false) {
+			for (int i = 0; i < codeLength; i++) {
+				char c = chars[random.nextInt(chars.length)];
+				sb.append(c);
+			}
+			num = Integer.parseInt(sb.toString());// To remove the Zero infront
+			if (num != 0) {
+				check = true;
+			}
+			sb.setLength(0);
+		}
+
+		sb.append(num);
+		return result = sb.toString();
+	}
+	
+	public static void startConnect() {
+		try {
+			GroupmulticastCommon = InetAddress.getByName(ipadd);
+			GroupmulticastSocket = new MulticastSocket(6789);
+
+			// Join
+			GroupmulticastSocket.joinGroup(GroupmulticastCommon);
+
+			// Send A joined Message
+			String message = "To the common channel " + txtUsername.getText() + " joined";
+			byte[] buf = message.getBytes();
+			DatagramPacket dgpConnected = new DatagramPacket(buf, buf.length, GroupmulticastCommon, 6789);
+			GroupmulticastSocket.send(dgpConnected);
+
+			// Create a new thread to keep listening for packets from
+			// the group
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					byte buf1[] = new byte[1000];
+					DatagramPacket dgpReceived = new DatagramPacket(buf1, buf1.length);
+					
+					while (true) {
+						try {
+							GroupmulticastSocket.receive(dgpReceived);
+							byte[] recievedData = dgpReceived.getData();
+							int length = dgpReceived.getLength();
+							// Assumed we have recieved the string
+							String msg = new String(recievedData, 0, length);
+							String[] InD = msg.split(":");
+							commonCommandHandler(InD);
+							fromOthers = "";
+							fromOthers = msg;
+							
+							//textArea.append("What is this "+msg + "\n");
+							String[] words = msg.split("\\s");// splits
+																// the
+																// string
+							// based on
+							System.out.println("msg1" + msg);
+						
+							String word = words[0];
+							System.out.println("word" + word);
+							if(word.equals("Room")){
+								rRoomName = words[1];
+								ipaddR=	words[2];
+								System.out.println("WWW "+ rRoomName + " "+ipaddR);
+								mylist.add(rRoomName);
+								mylist.add(ipaddR);
+								System.out.println("Size top  "+ mylist.size());
+								
+							}
+							
+							else if (word.equalsIgnoreCase("to")) {
+								//System.out.println("Is TO");
+								if (roomName.length() > 0 || ipaddR.length() > 0) {
+									msg ="Room "+ roomName + " " + ipaddR;
+									byte[] buf = msg.getBytes();
+									String commandOnAddUser = "NewGroupAll:"+roomName;
+									byte[] buf3 = commandOnAddUser.getBytes(); 
+									DatagramPacket dgpsend = new DatagramPacket(buf, buf.length, GroupmulticastCommon, 6789);
+									GroupmulticastSocket.send(dgpsend);
+									//System.out.println("msg "+ msg);
+									
+									
+								}
+								
+							}
+							
+							groupModel.addElement(roomName);
+			                groupList.setModel(groupModel);
+			               
+			                
+			                
+						} catch (IOException ex) {
+							ex.printStackTrace();
+						}
+					}
+				}
+			}).start();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+	}
 	
 	/**
 	 * Launch the application.
@@ -64,6 +203,7 @@ public class WaveChatApp extends JFrame {
 			public void run() {
 				try {
 					WaveChatApp frame = new WaveChatApp();
+					startConnect();
 					frame.setVisible(true);
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -137,47 +277,6 @@ public class WaveChatApp extends JFrame {
 		panel.add(txtUsername);
 		txtUsername.setColumns(10);
 		
-		JButton btnRegister = new JButton("Register");
-		btnRegister.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent arg0) {
-				if (txtUsername.getText().equals("")){
-					JOptionPane.showMessageDialog(new JFrame(), "Username not specified", "Error", JOptionPane.ERROR_MESSAGE);
-				}
-				else if (txtUsername.getText().contains(" ")){
-					JOptionPane.showMessageDialog(new JFrame(), "Username must NOT have any whitespaces", "Error", JOptionPane.ERROR_MESSAGE);
-				}
-				else if (txtUsername.getText().substring(0, 1).matches("[0-9]")){
-					JOptionPane.showMessageDialog(new JFrame(), "Username must NOT begin with a numeric", "Error", JOptionPane.ERROR_MESSAGE);
-				}else{
-					try{
-						usernameAvailability = true;
-						String commandOnCheck = "CheckUser:"+txtUsername.getText().trim()+":"+processID;
-						byte[] buf = commandOnCheck.getBytes();
-						DatagramPacket dgpUserCheck = new DatagramPacket(buf,buf.length, commonMulticastGroup, 6789);
-						commonMulticastSocket.send(dgpUserCheck);
-						
-						TimeUnit.MILLISECONDS.sleep(5);
-						
-						if (usernameAvailability == true){
-							btnRegister.setEnabled(false);
-							myUsername = txtUsername.getText().toString();
-							panelStatus.setBackground(new Color(102,204,0));
-							lblStatus.setText("ONLINE");
-							String commandOnAddUser = "GETALLUSER:"+myUsername;
-							byte[] buf1 = commandOnAddUser.getBytes(); 
-							DatagramPacket dgpNewUser = new DatagramPacket(buf1,buf1.length, commonMulticastGroup, 6789);
-							commonMulticastSocket.send(dgpNewUser);
-						}
-					}catch(Exception e){
-						e.printStackTrace();
-					}
-				}
-						
-			}
-		});
-		btnRegister.setBounds(269, 42, 97, 25);
-		panel.add(btnRegister);
-		
 		JLabel label = new JLabel("");
 		label.setFont(new Font("Tahoma", Font.BOLD, 13));
 		label.setBounds(12, 13, 73, 16);
@@ -218,9 +317,9 @@ public class WaveChatApp extends JFrame {
 		scrollPane_2.setBounds(12, 367, 351, 153);
 		panel.add(scrollPane_2);
 		
-		JList listGroups = new JList();
-		listGroups.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		scrollPane_2.setViewportView(listGroups);
+		groupList = new JList();
+		groupList.setBorder(new LineBorder(new Color(0, 0, 0), 2));
+		scrollPane_2.setViewportView(groupList);
 		
 		JLabel lblGroupName = new JLabel("Group Name: ");
 		lblGroupName.setFont(new Font("Tahoma", Font.PLAIN, 13));
@@ -237,10 +336,7 @@ public class WaveChatApp extends JFrame {
 		label_1.setBounds(276, 46, 73, 16);
 		panel.add(label_1);
 		
-		JButton btnCreateGrp = new JButton("Create");
-		btnCreateGrp.setEnabled(false);
-		btnCreateGrp.setBounds(269, 329, 97, 25);
-		panel.add(btnCreateGrp);
+		
 		
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new EtchedBorder(EtchedBorder.LOWERED, null, null));
@@ -282,6 +378,132 @@ public class WaveChatApp extends JFrame {
 		lblActiveChat.setBounds(206, 19, 318, 16);
 		panel_1.add(lblActiveChat);
 		
+		JButton btnCreateGrp = new JButton("Create");
+		btnCreateGrp.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				for(int i =0; i<mylist.size();i++){
+					System.out.println("Size below  "+ mylist.size());
+					System.out.println("i "+ i);
+					
+					System.out.println("Value "+ mylist.get(i).toString());
+					System.out.println("IPAddress "+ mylist.get(i).toString());
+					
+					if(i%2==0){
+						if(mylist.get(i).toString().equalsIgnoreCase(txtGrpName.getText().trim())){
+//							textArea.setText("");
+//							textArea.append(txtGrpName.getText()+ " Room existed ");
+							JOptionPane.showMessageDialog(new JFrame(), "Groupname in used.","Error", JOptionPane.ERROR_MESSAGE);
+							txtGrpName.setText("");
+							return;
+						}	
+					}			
+				}
+				try {
+					String msg = txtGrpName.getText();
+					roomName =txtGrpName.getText();
+					ipaddR = "";
+					ipaddR = ipaddTemplate + generateNumber().trim();
+					msg += " " + ipaddR;
+					byte[] buf = msg.getBytes();
+					DatagramPacket dgpsend = new DatagramPacket(buf, buf.length, GroupmulticastCommon, 6789);
+					GroupmulticastSocket.send(dgpsend);
+					System.out.println("msg "+ msg);
+					System.out.println("dgp "+ dgpsend);
+					
+					// multicastSocketPrivate
+
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+				
+				try {
+					GroupmulticastPrivate = InetAddress.getByName(ipaddR);
+					GroupmulticastSocketPrivate = new MulticastSocket(6789);
+
+					// Join
+					GroupmulticastSocketPrivate.joinGroup(GroupmulticastPrivate);
+					
+					String msg = txtUsername.getText() + "joined";
+					JOptionPane.showMessageDialog(new JFrame(), "Group created","Success", JOptionPane.INFORMATION_MESSAGE);
+					byte[] buf = msg.getBytes();
+					DatagramPacket dgpConnected = new DatagramPacket(buf, buf.length, GroupmulticastPrivate, 6789);
+					GroupmulticastSocketPrivate.send(dgpConnected);
+					
+					new Thread(new Runnable(){
+						@Override
+						public void run(){
+							byte[] buf1 = new byte[1000];
+							DatagramPacket dgpReceived = new DatagramPacket(buf1, buf1.length);
+							
+							while (true){
+								try {
+									GroupmulticastSocketPrivate.receive(dgpReceived);
+									byte[] receivedData = dgpReceived.getData();
+									int length = dgpReceived.getLength();
+									//Assumed we received string
+									String msg = new String(receivedData, 0, length);
+									fromOthers = "";
+									fromOthers = msg;
+									textArea.append(msg + "\n");
+								} catch(IOException e){
+									e.printStackTrace();
+								}
+							}
+						}
+					}).start();
+							btnSend.setEnabled(true);
+				
+				}catch(Exception e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		btnCreateGrp.setEnabled(false);
+		btnCreateGrp.setBounds(269, 329, 97, 25);
+		panel.add(btnCreateGrp);
+		
+		JButton btnRegister = new JButton("Register");
+		btnRegister.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				if (txtUsername.getText().equals("")){
+					JOptionPane.showMessageDialog(new JFrame(), "Username not specified", "Error", JOptionPane.ERROR_MESSAGE);
+				}
+				else if (txtUsername.getText().contains(" ")){
+					JOptionPane.showMessageDialog(new JFrame(), "Username must NOT have any whitespaces", "Error", JOptionPane.ERROR_MESSAGE);
+				}
+				else if (txtUsername.getText().substring(0, 1).matches("[0-9]")){
+					JOptionPane.showMessageDialog(new JFrame(), "Username must NOT begin with a numeric", "Error", JOptionPane.ERROR_MESSAGE);
+				}else{
+					try{
+						usernameAvailability = true;
+						String commandOnCheck = "CheckUser:"+txtUsername.getText().trim()+":"+processID;
+						byte[] buf = commandOnCheck.getBytes();
+						DatagramPacket dgpUserCheck = new DatagramPacket(buf,buf.length, commonMulticastGroup, 6789);
+						commonMulticastSocket.send(dgpUserCheck);
+						
+						TimeUnit.MILLISECONDS.sleep(5);
+						
+						if (usernameAvailability == true){
+							btnRegister.setEnabled(false);
+							myUsername = txtUsername.getText().toString();
+							panelStatus.setBackground(new Color(102,204,0));
+							lblStatus.setText("ONLINE");
+							String commandOnAddUser = "GETALLUSER:"+myUsername;
+							byte[] buf1 = commandOnAddUser.getBytes(); 
+							DatagramPacket dgpNewUser = new DatagramPacket(buf1,buf1.length, commonMulticastGroup, 6789);
+							commonMulticastSocket.send(dgpNewUser);
+							btnCreateGrp.setEnabled(true);
+						}
+					}catch(Exception e){
+						e.printStackTrace();
+					}
+				}
+						
+			}
+		});
+		btnRegister.setBounds(269, 42, 97, 25);
+		panel.add(btnRegister);
+		
 		panelStatus = new JPanel();
 		panelStatus.setBounds(888, 13, 119, 36);
 		contentPane.add(panelStatus);
@@ -295,7 +517,7 @@ public class WaveChatApp extends JFrame {
 		lblStatus.setFont(new Font("Tahoma", Font.BOLD, 13));
 	}
 	
-	private void commonCommandHandler(String[] inD) {
+	private static void commonCommandHandler(String[] inD) {
 		// TODO Auto-generated method stub
 		try{
 			if (inD[0].equals("CheckUser")){
@@ -321,6 +543,9 @@ public class WaveChatApp extends JFrame {
 			}else if (inD[0].equals("NewUserAll")){
 				userArray.add(inD[1].toString());
 				refreshOUser();
+			}else if (inD[0].equals("NewGroupAll")){
+				mylist.add(inD[1].toString());
+				refreshGroup();
 			}
 			
 //			}else if (inD[0].equals("NewUser")){
@@ -349,9 +574,17 @@ public class WaveChatApp extends JFrame {
 		
 	}
 	
-	public void refreshOUser(){
+	public static void refreshOUser(){
 		String[] uArray  = new String[userArray.size()];
 		userArray.toArray(uArray);
 		UserList.setListData(uArray);
 	}
+	
+	public static void refreshGroup(){
+		String[] uArray  = new String[mylist.size()];
+		mylist.toArray(uArray);
+		groupList.setListData(uArray);
+	}
+	
+	
 }
